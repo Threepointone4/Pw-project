@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>Blockchain Insurance</title>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
+	<link rel="stylesheet" href="css/style.css">
+
+</head>
+
+<body>
+	<!-- multistep form -->
+	<div id="app">
+		<form id="msform">
+			<!-- progressbar -->
+			<ul id="progressbar">
+				<li v-bind:class="[CurrentActive == 1 && activeClass]">LOGIN</li>
+				<li v-bind:class="[CurrentActive == 2 && activeClass]">INSURANCE</li>
+				<li v-bind:class="[CurrentActive == 3 && activeClass]">BUY INSURANCE</li>
+			</ul>
+
+
+
+			<div v-if="CurrentActive == 1">
+				<fieldset>
+					<h2 class="fs-title">Login</h2>
+					<h3 class="fs-subtitle">Login to Claim your Insurance</h3>
+					<input placeholder="Aadhaar Card" v-model="mobileNumber" />
+					<input type="button" class="action-button" value="Login" v-on:click="login" />
+				</fieldset>
+			</div>
+
+
+			<div v-if="CurrentActive == 2">
+				<fieldset>
+					<h2 class="fs-title">Information</h2>
+					<ol>
+						<li id="claiming" v-for="(item, index) in TransactionList" key="index">
+							<div style="flex:1; display:flex; align-items:center;">
+								<div style="flex:0.33">{{item.tokenName}}</div>
+								<div style="flex:0.33">{{item.balance}}</div>
+								<div style="flex:0.33" v-if="item.tokenName != 'MNY'">
+									<input v-if="item.balance > 0" type="button" name="Add" class="next action-button" value="Claim" id="add" v-on:click="()=> claim(item)"/>
+									<div v-else>{{item.status}}</div>
+								</div>
+							</div>
+						</li>
+					</ol>
+					<div v-if="TransactionList.length < 3">
+						<input type="button" name="Add" class="next action-button" value="New" id="add" v-on:click="onAddNewClick" />
+					</div>
+				</fieldset>
+			</div>
+
+			<div v-if="CurrentActive == 3">
+				<fieldset>
+					<h2 class="fs-title">Buy Insurance</h2>
+					<input type="text" v-model="amount" name="amount" placeholder="Amount" />
+					<select v-model="selected" style=" display:  flex; width:  100%; height:  54px;">
+						<option>SBI</option>
+						<option>HDF</option>
+					</select>
+					<input type="button" name="Add" class="next action-button" value="Done" id="add " v-on:click="makeInrDeposit" />
+				</fieldset>
+			</div>
+
+		</form>
+	</div>
+
+	<script src='http://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js'></script>
+	<script src='http://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js'></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+	<script src="./js/index.js"></script>
+
+	<script>
+		new Vue({
+			el: '#app',
+			data: {
+				mobileNumber: '',
+				transactionList: [],
+				amount: '',
+				selected: 'SBI',
+				currentActive: 2,
+				activeClass: 'active',
+				hiddenClass: 'hidden',
+				noneValue: { display: 'none' },
+				blockValue: { display: 'block' },
+			},
+
+			mounted: function () {
+				var _this = this;
+			},
+
+			computed: {
+				TransactionList() {
+					return this.transactionList;
+				},
+				Otp() {
+					return this.otp;
+				},
+				MobileNumber() {
+					return this.mobileNumber;
+				},
+				Amount() {
+					return this.amount;
+				},
+				Selected() {
+					return this.selected;
+				},
+				CurrentActive() {
+					return this.currentActive;
+				}
+			},
+
+			methods: {
+
+				login() {
+					var _this = this;
+					const url = 'http://0.0.0.0:8000/'
+					const mobileNumber = this.MobileNumber;
+
+					$.ajax({
+						type: 'POST',
+						url: url,
+						data: JSON.stringify({ mobileNumber: mobileNumber }),
+						dataType: "json",
+						contentType: "application/json",
+						success: function (result) {
+							if (result) {
+								localStorage.setItem('mobileNumber', mobileNumber);
+								setInterval(() => {
+									_this.loadTransactionList();
+								}, 5000);
+
+								_this.currentActive = 2;
+								console.log(_this);
+							}
+						},
+						error: function (err) {
+							console.log(err);
+						}
+					});
+				},
+
+				loadTransactionList() {
+					var _this = this;
+					const url = 'http://localhost:3000/getTransaction';
+					const mobileNumber = localStorage.getItem('mobileNumber');
+					$.ajax({
+						type: 'POST',
+						url: url,
+						data: JSON.stringify({ mobileNumber: mobileNumber }),
+						dataType: "json",
+						contentType: "application/json",
+						success: function (result) {
+							if (result && result.items) {
+								_this.transactionList = result.items.slice();
+							}
+						},
+						error: function (err) {
+							console.log(err);
+						}
+					});
+				},
+
+				onAddNewClick() {
+					this.currentActive = 1;
+				},
+
+
+				makeInrDeposit() {
+					var _this = this;
+					const url = 'http://localhost:3000/depositInr';
+					const mobileNumber = localStorage.getItem('mobileNumber');
+					const amount = this.Amount;
+					const selected = this.Selected;
+					$.ajax({
+						type: 'POST',
+						url: url,
+						data: JSON.stringify({ mobileNumber: mobileNumber, amount: amount, tokenName: selected }),
+						dataType: "json",
+						contentType: "application/json",
+						success: function (result) {
+							if (result && result.transactionHash) {
+								_this.currentActive = 2;
+							}
+						},
+						error: function (err) {
+							console.log(err);
+						}
+					});
+				},
+
+				claim(item) {
+					var _this = this;
+					const url = 'http://localhost:3000/claimAmount';
+					const mobileNumber = localStorage.getItem('mobileNumber');
+					const depositId = item._id;
+					const tokenName = item.tokenName;
+					$.ajax({
+						type: 'POST',
+						url: url,
+						data: JSON.stringify({ mobileNumber: mobileNumber, depositId: depositId, tokenName: tokenName }),
+						dataType: "json",
+						contentType: "application/json",
+						success: function (result) {
+							console.log(result);
+							if (result && result.id) {
+
+							}
+						},
+						error: function (err) {
+							console.log(err);
+						}
+					});
+				}
+			}
+		});
+
+	</script>
+</body>
+
+</html>
